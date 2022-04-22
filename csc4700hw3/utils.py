@@ -109,8 +109,6 @@ def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_
         plt.title("Selected patches for "+stage.capitalize())
         plt.show() 
 
-    X = tf.convert_to_tensor(X)
-    Y = tf.convert_to_tensor(Y)
 
     return X,Y
 
@@ -140,6 +138,8 @@ if __name__ == "__main__":
 
     x,y=input_data(stage='test',plot=True,n_patches=100,patch_size=256,aug_mode='random_patches')
 
+    x = tf.convert_to_tensor(X)
+    y = tf.convert_to_tensor(Y)
 
     with tf.compat.v1.Session() as sess:  print(mIoU(y,y).eval()) 
 
