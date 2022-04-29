@@ -81,7 +81,7 @@ def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_
     elif aug_mode=='non-overlapping':
         max_patches=int(IMG_HEIGHT/patch_size)*int(IMG_WIDTH/patch_size)
         X=np.zeros((max_patches,patch_size,patch_size,IMG_CHANNELS),dtype=np.uint8)
-        Y=np.zeros((max_patches,patch_size,patch_size,1),dtype=np.bool)
+        Y=np.zeros((max_patches,patch_size,patch_size,n_classes),dtype=np.int8)
         for i in range(0,IMG_HEIGHT-patch_size,patch_size):
             for j in range(0,IMG_WIDTH-patch_size,patch_size):
                 upperleft_x=j
@@ -94,7 +94,10 @@ def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_
 
                 if np.max(img2)>0:
                     X[count]=img
-                    Y[count]=img2
+                    for ii in range(n_classes):
+                        ind = np.where(img2==ii)
+                        Y[count,ind[0],ind[1],ii]=1
+
                     count+=1
                     if plot:
                         rect=patches.Rectangle((upperleft_y,upperleft_x),patch_size,patch_size,linewidth=1,
@@ -136,7 +139,7 @@ def mIoU(mask, prediction, smooth=1):
 
 if __name__ == "__main__":
 
-    x,y=input_data(stage='test',plot=True,n_patches=100,patch_size=256,aug_mode='random_patches')
+    x,y=input_data(stage='test',plot=True,n_patches=100,patch_size=256,aug_mode='non-overlapping')
 
     x = tf.convert_to_tensor(x)
     y = tf.convert_to_tensor(y)
