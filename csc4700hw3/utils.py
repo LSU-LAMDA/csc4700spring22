@@ -138,8 +138,8 @@ if __name__ == "__main__":
 
     x,y=input_data(stage='test',plot=True,n_patches=100,patch_size=256,aug_mode='random_patches')
 
-    x = tf.convert_to_tensor(X)
-    y = tf.convert_to_tensor(Y)
+    x = tf.convert_to_tensor(x)
+    y = tf.convert_to_tensor(y)
 
     with tf.compat.v1.Session() as sess:  print(mIoU(y,y).eval()) 
 
