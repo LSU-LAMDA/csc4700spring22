@@ -8,35 +8,46 @@ import numpy as np
 from tensorflow.keras import backend as K
 import tensorflow as tf
 
-def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_patches', plot = False, random_seed=1):
+def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_patches', plot = False, random_seed=1, n_images=1):
     '''
-    Converts the images into TF tensors.
+    Converts the images into numpy array.
     stage: can be 'train' or 'test'; it reads the images from the corresponding folder
-    n_patches: determines the number of pataches in random_patches aug_mode
+    n_patches: determines the number of pataches from each image in random_patches aug_mode
     patch_size: dimensions of the square patches in pixels
     aug_mode: two augmentation modes: 'random_patches' and 'non-overlapping'
     plot: if True, plots the original segmentation map and spatial distribution of selected patches.
     random_seed: random seed in 'random_patches' augmentation mode
+    n_images: number of original raw images that will be used for training
     
     output: 
-    X: a TF tensor containing the patches of image with dimensions: [n_patches (or count),patch_size, patch_size, 1]
-    Y: a TF tensor containing the patches of segmentation map with dimensions: [n_patches (or count),patch_size, patch_size, 3 (number of classes)]
+    X: a numpy array containing the patches of image with dimensions: [n_patches (or count),patch_size, patch_size, 1]
+    Y: a numpy array containing the patches of segmentation map with dimensions: [n_patches (or count),patch_size, patch_size, 3 (number of classes)]
     '''
+    images = []
+    masks = []
 
     if stage=='train':
         random.seed(random_seed)
-        imgcode=next(os.walk('data/train/image'))[2][0]
-        image=np.asarray(Image.open(os.path.join('data/train/image',imgcode)))
-        mask=np.asarray(Image.open(os.path.join('data/train/mask',imgcode)))
+        imgcode=next(os.walk('data/train/image'))[2][0:n_images]
+        for code in imgcode:
+            image=np.asarray(Image.open(os.path.join('data/train/image',code)))
+            mask=np.asarray(Image.open(os.path.join('data/train/mask',code)))
+            images.append(image)
+            masks.append(mask)
+
     elif stage=='test':
         random.seed(random_seed+1)
-        imgcode=next(os.walk('data/test/image'))[2][0]
-        image=np.asarray(Image.open(os.path.join('data/test/image',imgcode)))
-        mask=np.asarray(Image.open(os.path.join('data/test/mask',imgcode)))
+        n_images=1
+        imgcode=[]
+        imgcode.append(next(os.walk('data/test/image'))[2][0])
+        image=np.asarray(Image.open(os.path.join('data/test/image',imgcode[0])))
+        mask=np.asarray(Image.open(os.path.join('data/test/mask',imgcode[0])))
+        images.append(image)
+        masks.append(mask)
     else:
         raise ValueError("'stage' is not defined!")
 
-    count = 0
+    # count = 0
 
     IMG_HEIGHT = 2043
     IMG_WIDTH = 2005
@@ -44,72 +55,83 @@ def input_data(stage='train', n_patches=100, patch_size=256, aug_mode = 'random_
 
     n_classes = 3
 
+    axes = []
     if plot:
-        fig,ax=plt.subplots(1)
-        ax.imshow(mask*100,cmap='gray', vmin=0, vmax=255)
+        for maskax in masks:
+            _,ax=plt.subplots(1)
+            axes.append(ax)
+            ax.imshow(maskax*100,cmap='gray', vmin=0, vmax=255)
 
-
+    
     if aug_mode=='random_patches':
-        X=np.zeros((n_patches,patch_size,patch_size,IMG_CHANNELS),dtype=np.uint8)
-        Y=np.zeros((n_patches,patch_size,patch_size,n_classes),dtype=np.uint8)
+        X=np.zeros((n_patches*n_images,patch_size,patch_size,IMG_CHANNELS),dtype=np.uint8)
+        Y=np.zeros((n_patches*n_images,patch_size,patch_size,n_classes),dtype=np.uint8)
 
-        while count<n_patches:
+        for imgnum in range(len(images)):
+            count = 0
+            while count<n_patches:
+                
+                upperleft_x=random.choice(range(IMG_HEIGHT-patch_size))
+                upperleft_y=random.choice(range(IMG_WIDTH-patch_size))
 
-            upperleft_x=random.choice(range(IMG_HEIGHT-patch_size))
-            upperleft_y=random.choice(range(IMG_WIDTH-patch_size))
-            img=image[upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
-            img2=mask[upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
-            
-            
-            img=np.expand_dims(img,axis=-1)
-            img2=np.expand_dims(img2,axis=-1)
-
-            if np.max(img2)>0:
-                X[count]=img
-                for i in range(n_classes):
-                    ind = np.where(img2==i)
-                    Y[count,ind[0],ind[1],i]=1
-
-
-                count+=1
-                if plot:
-                    rect=patches.Rectangle((upperleft_y,upperleft_x),patch_size,patch_size,linewidth=1,
-                                    edgecolor='w',facecolor="none")
-                    ax.add_patch(rect)
-
-
-    elif aug_mode=='non-overlapping':
-        max_patches=int(IMG_HEIGHT/patch_size)*int(IMG_WIDTH/patch_size)
-        X=np.zeros((max_patches,patch_size,patch_size,IMG_CHANNELS),dtype=np.uint8)
-        Y=np.zeros((max_patches,patch_size,patch_size,n_classes),dtype=np.int8)
-        for i in range(0,IMG_HEIGHT-patch_size,patch_size):
-            for j in range(0,IMG_WIDTH-patch_size,patch_size):
-                upperleft_x=j
-                upperleft_y=i
-                img=image[upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
-                img2=mask[upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
-
+                img=images[imgnum][upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
+                img2=masks[imgnum][upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
+                
+                
                 img=np.expand_dims(img,axis=-1)
                 img2=np.expand_dims(img2,axis=-1)
 
                 if np.max(img2)>0:
                     X[count]=img
-                    for ii in range(n_classes):
-                        ind = np.where(img2==ii)
-                        Y[count,ind[0],ind[1],ii]=1
+                    for i in range(n_classes):
+                        ind = np.where(img2==i)
+                        Y[count,ind[0],ind[1],i]=1
+
 
                     count+=1
                     if plot:
                         rect=patches.Rectangle((upperleft_y,upperleft_x),patch_size,patch_size,linewidth=1,
                                         edgecolor='w',facecolor="none")
-                        ax.add_patch(rect)
+                        axes[imgnum].add_patch(rect)
+                        axes[imgnum].set_title("Selected patches from "+imgcode[imgnum]+ " for "+stage.capitalize())
+
+
+    elif aug_mode=='non-overlapping':
+        count = 0
+        for imgnum in range(len(images)):
+            
+            max_patches=int(IMG_HEIGHT/patch_size)*int(IMG_WIDTH/patch_size)
+            X=np.zeros((max_patches*n_images,patch_size,patch_size,IMG_CHANNELS),dtype=np.uint8)
+            Y=np.zeros((max_patches*n_images,patch_size,patch_size,n_classes),dtype=np.int8)
+            for i in range(0,IMG_HEIGHT-patch_size,patch_size):
+                for j in range(0,IMG_WIDTH-patch_size,patch_size):
+                    upperleft_x=j
+                    upperleft_y=i
+                    img=images[imgnum][upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
+                    img2=masks[imgnum][upperleft_x:upperleft_x+patch_size,upperleft_y:upperleft_y+patch_size]
+
+                    img=np.expand_dims(img,axis=-1)
+                    img2=np.expand_dims(img2,axis=-1)
+
+                    if np.max(img2)>0:
+                        X[count]=img
+                        for ii in range(n_classes):
+                            ind = np.where(img2==ii)
+                            Y[count,ind[0],ind[1],ii]=1
+
+                        count+=1
+                        if plot:
+                            rect=patches.Rectangle((upperleft_y,upperleft_x),patch_size,patch_size,linewidth=1,
+                                            edgecolor='w',facecolor="none")
+                            axes[imgnum].add_patch(rect)
+                            axes[imgnum].set_title("Selected patches from "+imgcode[imgnum]+ " for "+stage.capitalize())
 
         X=X[:count]
         Y=Y[:count]
 
 
     if plot:
-        plt.title("Selected patches for "+stage.capitalize())
+        # plt.title("Selected patches for "+stage.capitalize())
         plt.show() 
 
 
@@ -139,7 +161,9 @@ def mIoU(mask, prediction, smooth=1):
 
 if __name__ == "__main__":
 
-    x,y=input_data(stage='test',plot=True,n_patches=100,patch_size=256,aug_mode='non-overlapping')
+    x,y=input_data(stage='train',plot=True,n_patches=100,patch_size=256,aug_mode='random_patches',n_images=2)
+
+    print(x.shape)
 
     x = tf.convert_to_tensor(x)
     y = tf.convert_to_tensor(y)
